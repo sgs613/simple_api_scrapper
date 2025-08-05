@@ -15,18 +15,19 @@ import time
 
 
 def load_ids_from_file(filepath):
-    if filepath:
-        # TODO Allow the use of a seperator in file reading for ease of use
-        try:
-            with open(filepath, "r") as f:
-                return [line.strip() for line in f if line.strip()]
-        except FileNotFoundError:
-            print(f"❌ Error: File not found: {filepath}")
-            return []
-        except Exception as e:
-            print(f"❌ Error reading file: {str(e)}")
-            return []
-    else:
+    """Load IDs from file with basic error handling."""
+    if not filepath:
+        return []
+
+    # TODO Allow the use of a seperator in file reading for ease of use
+    try:
+        with open(filepath, "r") as f:
+            return [line.strip() for line in f if line.strip()]
+    except FileNotFoundError:
+        print(f"❌📄 Error: File not found: {filepath}")
+        return []
+    except Exception as e:
+        print(f"❌📄 Error reading file: {str(e)}")
         return []
 
 
