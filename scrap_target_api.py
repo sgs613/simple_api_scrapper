@@ -30,6 +30,70 @@ def load_ids_from_file(filepath):
         return []
 
 
+def backoff_delay(backoff_factor, attempts):
+    delay = backoff_factor * (2 ** (attempts - 1))
+    return delay
+
+
+def retryable_request(
+    url,
+    headers,
+    counter=4,
+    backoff_factor=2,
+):
+    retryable_statuses = [403, 429, 500, 502, 503, 504]
+    response = None
+    for attempt in range(counter):
+        try:
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code in retryable_statuses:
+                delay = None
+                retry_after = response.headers.get("Retry-After")
+                if retry_after:
+                    # Only support seconds in retry_after header
+                    delay = int(retry_after)
+                else:
+                    delay = backoff_delay(backoff_factor, attempt)
+                print(f"❌ Backoff stategy, {str(delay)} seconds until next retry.")
+                time.sleep(delay)
+                continue
+            else:
+                return response
+        except requests.exceptions.ConnectionError:
+            # TODO find a way to better way to handle the shit
+            pass
+    return response
+
+
+def parse_api_response(id, response):
+    if response.status_code == 200:
+        print(f"✅ Successfully got {id} - Status: {response.status_code}")
+        # Try to parse as JSON and format it
+        try:
+            return json.dumps(response.json(), indent=2)
+        except json.JSONDecodeError as e:
+            print(f"⚠️ Warning: Invalid JSON for {id} - {str(e)}")
+            return json.dumps(
+                {
+                    "id": id,
+                    "error": "Invalid JSON response",
+                    "status": "json_error",
+                },
+                indent=2,
+            )
+
+    print(f"❌ {response.reason} for {id} - Status: {response.status_code}")
+    return json.dumps(
+        {
+            "id": id,
+            "error": "API request error",
+            "status_code": response.status_code,
+            "status": response.reason,
+        },
+        indent=2,
+    )
+
+
 def get_json_data(url, id, auth_token):
     """
     Fetch data from API endpoint with basic error handling and logging.
@@ -44,46 +108,25 @@ def get_json_data(url, id, auth_token):
     """
 
     full_url = f"{url}/{id}"
+
     headers = {
         "Accept": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0",
         "Authorization": f"{auth_token}",  # Given with auth schema
-        "Content-Type": "application/json",
+        "Accept": "*/*",
+        "Accept-Language": "en-US,en;",
+        "DNT": "1",
+        "Connection": "keep-alive",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin",
     }
 
     try:
-        response = requests.get(full_url, headers=headers, timeout=10)
-
-        if response.status_code == 200:
-            print(f"✅ Successfully got {id} - Status: {response.status_code}")
-
-            # Try to parse as JSON and format it
-            try:
-                json_data = response.json()
-                return json.dumps(json_data, indent=2)
-            except json.JSONDecodeError as e:
-                print(f"⚠️ Warning: Invalid JSON for {id} - {str(e)}")
-                return json.dumps(
-                    {
-                        "id": id,
-                        "error": "Invalid JSON response",
-                        "status": "json_error",
-                    },
-                    indent=2,
-                )
-
-        else:
-            print(f"❌ {response.reason} for {id} - Status: {response.status_code}")
-            return json.dumps(
-                {
-                    "id": id,
-                    "error": "API request error",
-                    "status_code": response.status_code,
-                    "status": response.reason,
-                },
-                indent=2,
-            )
+        response = retryable_request(full_url, headers)
+        return parse_api_response(id, response)
     except Exception as e:
+        # Quick ugly handling
         print(f"💥 Unexpected error for {id}: {str(e)}")
         return json.dumps(
             {
