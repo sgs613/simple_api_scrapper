@@ -2,6 +2,8 @@ import sys
 import json
 import argparse
 import requests
+import random
+import time
 
 # TODO Custom file & path output
 # TODO Add automatic response content recognition (adaptative output)
@@ -123,6 +125,13 @@ def scrap_api_to_file(url, ids, auth_token):
                 f.write(",\n")  # Add comma separator (except for first item)
             f.write(data)
 
+            # Progress feedback every 10 requests
+            if (i + 1) % 10 == 0:
+                print(
+                    f"📊 Progress: {i+1}/{len(ids)} - Success: {successful}, Failed: {failed}"
+                )
+            # Add human-like delays
+            time.sleep(random.uniform(0.15, 0.75))  # Random delay between requests
         f.write("\n]")  # Close JSON array
         print(f"✅ Completed! Success: {successful}, Failed: {failed}")
         print(f"📁 Results saved to: {f.name}")
