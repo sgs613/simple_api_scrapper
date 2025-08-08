@@ -11,7 +11,6 @@ import time
 # TODO Add suffix support to urls
 # TODO Change logic from id to general url path variables for flexibility purposes
 # TODO What about giving a json template of the expected response ? Allowing graphql kind of behavior
-# TODO Rework the scrap method to separate url building from the write-to-file processing
 
 
 def load_ids_from_file(filepath):
